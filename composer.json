@@ -1,0 +1,40 @@
+{
+    "name": "taffovelikoff/imagekit-adapter",
+    "description": "Flysystem adapter for ImageKit.",
+    "keywords": [
+        "imagekit",
+        "tavvo",
+        "taffovelikoff",
+        "taffo",
+        "api",
+        "host",
+        "cdn"
+    ],
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Taffo Velikoff",
+            "email": "contact@taffovelikoff.com",
+            "homepage": "https://taffovelikoff.com",
+            "role": "Developer"
+        }
+    ],
+    "minimum-stability": "stable",
+    "require": {
+        "php": ">=7.0",
+        "illuminate/support": ">=5.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "TaffoVelikoff\\ImageKitAdapter\\": "src/",
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "TaffoVelikoff\\ImageKitAdapter\\ImageКitServiceProvider",
+            ]
+        }
+    }
+}
