@@ -28,8 +28,7 @@ class ImageKitServiceProvider extends ServiceProvider
      */
     public function boot()
     {
-
-       Storage::extend('imagekit', function () {
+        Storage::extend('imagekit', function ($app) {
 
             // Get client
             $client = new \TaffoVelikoff\ImageKitAdapter\Client(

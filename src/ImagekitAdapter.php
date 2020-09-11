@@ -39,6 +39,9 @@ class ImagekitAdapter extends AbstractAdapter {
      */
     public function update($path, $contents, Config $config)
     {
+        // Make a purge cache request
+        if(config('imagekit.purge_cache_update') === true)
+            $this->client->purgeCacheApi(config('imagekit.endpoint').'/'.$path);
 
         return $this->upload($path, $contents);
     }
@@ -203,19 +206,54 @@ class ImagekitAdapter extends AbstractAdapter {
      */
     public function listContents($directory = '', $recursive = false): array
     {
+
         $list = $this->client->listFiles([
             'name'          => $directory,
-            'includeFolder' => true
+            'includeFolder' => config('imagekit.include_folders')
         ]);
 
-        $files = array_map(function($e){
-            if($e->type == 'file') {
-                return [
-                    'path'      => $e->filePath
-                ];
-            } else {
-                return ['path' => ''];
+        // If not recursive remove files
+        if($recursive === false) {
+            foreach ($list->success as $key => $e) {
+
+                // Get path parts
+                if(isset($e->filePath)) {
+                    $pathParts = explode('/', $e->filePath);
+                } else {
+                    $pathParts = explode('/', $e->folderPath);
+                }
+
+                // Get directory name
+                end($pathParts);
+                $dirName = prev($pathParts);
+
+                if($dirName != $directory) {
+                    unset($list->success[$key]);
+                }
             }
+        }
+
+        $files = array_map(function($e) use($recursive, $directory) {
+
+            $dirName = '';
+
+            // Get path parts
+            if(isset($e->filePath)) {
+                $pathParts = explode('/', $e->filePath);
+                $filePath = $e->filePath; 
+            } else {
+                $pathParts = explode('/', $e->folderPath);
+                $filePath = $e->folderPath;
+            }
+
+            // Get directory name
+            end($pathParts);
+            $dirName = prev($pathParts);
+
+            return [
+                'path'      => $filePath,
+                'dirname'   => $dirName,
+            ];
             
         }, $list->success);
 
@@ -298,9 +336,6 @@ class ImagekitAdapter extends AbstractAdapter {
         
         if($file === false)
             return false;
-
-        // Check if config purge cache
-        $this->client->purgeCacheApi(config('imagekit.endpoint').'/'.$path);
 
         // Upload file
         $upload = $this->client->upload([

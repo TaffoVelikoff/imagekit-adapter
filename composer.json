@@ -23,18 +23,27 @@
     "minimum-stability": "stable",
     "require": {
         "php": ">=7.0",
-        "illuminate/support": ">=5.5"
+        "illuminate/support": ">=5.5",
+        "imagekit/imagekit": "^1.2"
     },
     "autoload": {
         "psr-4": {
-            "TaffoVelikoff\\ImageKitAdapter\\": "src/",
+            "TaffoVelikoff\\ImageKitAdapter\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "TaffoVelikoff\\ImageKitAdapter\\Tests\\": "tests/"
         }
     },
     "extra": {
         "laravel": {
             "providers": [
-                "TaffoVelikoff\\ImageKitAdapter\\ImageКitServiceProvider",
+                "TaffoVelikoff\\ImageKitAdapter\\ImageКitServiceProvider"
             ]
         }
+    },
+    "require-dev": {
+        "orchestra/testbench": "5.5.0"
     }
 }
