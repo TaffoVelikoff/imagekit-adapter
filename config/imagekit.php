@@ -25,7 +25,8 @@ return [
     | Cache options
     |--------------------------------------------------------------------------
     |
-    | purge_cache_update - if set to true a cache clear request is going to be made for he given path.
+    | purge_cache_update - if set to true a cache clear request is going to be made
+    | on file update and delete for the given path.
     | Read more about cache here: https://docs.imagekit.io/features/caches
     |
     */
@@ -42,4 +43,16 @@ return [
     */
 
     'include_folders'       => true,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Extend storage
+    |--------------------------------------------------------------------------
+    |
+    | extend_storage - if set to true will extend the file storage system, so you can define new disks 
+    | using "imagekit" driver in the filesystems.php config file.
+    |
+    */
+
+    'extend_storage'        => true,
 ];

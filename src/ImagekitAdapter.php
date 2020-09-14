@@ -14,7 +14,7 @@ class ImagekitAdapter extends AbstractAdapter {
 
     protected $client;
 
-    public function __construct(Client $client) {
+    public function __construct(\ImageKit\ImageKit $client) {
         $this->client = $client;
     }
 
@@ -97,6 +97,10 @@ class ImagekitAdapter extends AbstractAdapter {
         // Find file
         $file = $this->searchFile($path);
 
+        // Make a purge cache request
+        if(config('imagekit.purge_cache_update') === true)
+            $this->client->purgeCacheApi(config('imagekit.endpoint').'/'.$path);
+
         // Delete file
         $delete = $this->client->deleteFile($file->fileId);
 
@@ -143,7 +147,6 @@ class ImagekitAdapter extends AbstractAdapter {
             'folder'            => $dirname
         ]);
 
-
         return $upload;
     }
 
@@ -161,7 +164,7 @@ class ImagekitAdapter extends AbstractAdapter {
             'path'          => $filePath['directory'],
             'includeFolder' => true
         ]);
-        
+
         // Does NOT exist
         if(count($file->success) == 0)
             return false;
@@ -344,6 +347,7 @@ class ImagekitAdapter extends AbstractAdapter {
             'useUniqueFileName' => false,
             'folder'            => $file['directory']
         ]);
+
 
         return $upload;
     }

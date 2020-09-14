@@ -24,7 +24,7 @@
     "require": {
         "php": ">=7.0",
         "illuminate/support": ">=5.5",
-        "imagekit/imagekit": "^1.2"
+        "imagekit/imagekit": "^1.2",
     },
     "autoload": {
         "psr-4": {
@@ -44,6 +44,7 @@
         }
     },
     "require-dev": {
-        "orchestra/testbench": "5.5.0"
+        "orchestra/testbench": "5.5.0",
+        "phpspec/prophecy-phpunit": "^2.0"
     }
 }

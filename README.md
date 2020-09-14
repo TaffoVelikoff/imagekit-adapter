@@ -48,7 +48,7 @@ Go to `config/filesystems.php ` and create a new disk (or change the driver of o
 ],
 ```
 ```php
-use Storage;
+use Storage; 
 
 // Upload file (second argument can be a url, file or base64)
 Storage::disk('imagekit')->put('filename.jpg', 'http://mysite.com/my_image.com');
@@ -62,14 +62,40 @@ Storage::disk('imagekit')->delete('filename.jpg');
 // List all files 
 Storage::disk('imagekit')->listContents('', false); // listContents($directoryName, $recursive)
 ```
+
+Or if you don't want to extend the storage you can also do this:
+```php
+use ImageKit\ImageKit;
+use TaffoVelikoff\ImageKitAdapter\ImageKitAdapter;
+
+// Client
+$client = new ImageKit (
+    config('imagekit.public'),
+    config('imagekit.private'),
+    config('imagekit.endpoint')
+);
+
+// Adapter
+$adapter = new ImagekitAdapter($client);
+
+// Filesystem
+$fsys = new Filesystem($adapter);
+
+// Read a file example
+$file = $fsys->read('default-image.jpg');
+```
+
+
 ## Configuration
 If you publish the config file you can change a few things:
 ```
 'purge_cache_update'    => true,
 'include_folders'       => true,
+'extend_storage'        => true
 ```
-* purge_cache_update - if set to true a cache clear request is going to be made for he given path. Read more here: [https://docs.imagekit.io/features/caches](https://docs.imagekit.io/features/caches).
+* purge_cache_update - if set to true a cache clear request is going to be made on file update and delete for the given path. Read more here: [https://docs.imagekit.io/features/caches](https://docs.imagekit.io/features/caches).
 * include_folders - if set to true folders will also be returned when using listContents()
+* extend_storage - Set to true by default. Extend the file storage system, so you can define new disks using "imagekit" driver in the filesystems.php config file (just like the example above).
 
 ## License
 [MIT](https://choosealicense.com/licenses/mit/)

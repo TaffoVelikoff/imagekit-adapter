@@ -3,6 +3,7 @@
 namespace TaffoVelikoff\ImageKitAdapter;
 
 use Storage;
+use ImageKit\ImageKit;
 use League\Flysystem\Filesystem;
 use Illuminate\Support\ServiceProvider;
 
@@ -19,6 +20,12 @@ class ImageKitServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__.'/../config/imagekit.php' => config_path('imagekit.php'),
         ], 'imagekit');
+
+        // Merge config
+        $this->mergeConfigFrom(
+            __DIR__.'/../config/imagekit.php', 'imagekit'
+        );
+
     }
 
     /**
@@ -28,21 +35,22 @@ class ImageKitServiceProvider extends ServiceProvider
      */
     public function boot()
     {
-        Storage::extend('imagekit', function ($app) {
+        if(config('imagekit.extend_storage') === true)
+            Storage::extend('imagekit', function ($app) {
 
-            // Get client
-            $client = new \TaffoVelikoff\ImageKitAdapter\Client(
-                config('imagekit.public'),
-                config('imagekit.private'),
-                config('imagekit.endpoint')
-            );
+                // Get client
+                $client = new ImageKit (
+                    config('imagekit.public'),
+                    config('imagekit.private'),
+                    config('imagekit.endpoint')
+                );
 
-            // Get adapter
-            $adapter = new ImagekitAdapter($client);
+                // Get adapter
+                $adapter = new ImagekitAdapter($client);
 
-            // Return filesystem
-            return new Filesystem($adapter);
-        });
+                // Return filesystem
+                return new Filesystem($adapter);
+            });
     }
 
 }
