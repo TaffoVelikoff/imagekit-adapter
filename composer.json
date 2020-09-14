@@ -1,6 +1,7 @@
 {
     "name": "taffovelikoff/imagekit-adapter",
     "description": "Flysystem adapter for ImageKit.",
+    "version": "1.0.0",
     "keywords": [
         "imagekit",
         "tavvo",

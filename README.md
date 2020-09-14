@@ -1,5 +1,3 @@
-[UNDER DEVELOPMENT]
-
 # Laravel filesystem adapter for the ImageKit API
 
 A [Flysystem](https://flysystem.thephpleague.com/) adapter for [ImageKit](https://imagekit.io/).
