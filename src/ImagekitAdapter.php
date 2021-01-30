@@ -31,7 +31,7 @@ class ImagekitAdapter extends AbstractAdapter {
      */
     public function writeStream($path, $resource, Config $config)
     {
-        return $this->upload($path, $contents);
+        return $this->upload($path, $resource);
     }
 
     /**
