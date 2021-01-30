@@ -17,6 +17,13 @@ class ImagekitAdapter extends AbstractAdapter {
     public function __construct(\ImageKit\ImageKit $client) {
         $this->client = $client;
     }
+	
+    public function getUrl($path)
+    {
+        return $this->client->url([
+                "path" => $path,
+            	]);
+    }
 
     /**
      * {@inheritdoc}
