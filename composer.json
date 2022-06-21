@@ -36,13 +36,6 @@
             "TaffoVelikoff\\ImageKitAdapter\\Tests\\": "tests/"
         }
     },
-    "extra": {
-        "laravel": {
-            "providers": [
-                "TaffoVelikoff\\ImageKitAdapter\\ImageKitServiceProvider"
-            ]
-        }
-    },
     "require-dev": {
         "orchestra/testbench": "5.5.0",
         "phpspec/prophecy-phpunit": "^2.0"
