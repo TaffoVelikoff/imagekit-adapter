@@ -1,6 +1,8 @@
-# Laravel filesystem adapter for the ImageKit API
+# Flysystem adapter for the ImageKit API
 
 A [Flysystem](https://flysystem.thephpleague.com/) adapter for [ImageKit](https://imagekit.io/).
+This package used to be Laravel only, but it can now be used in any php project! If you are using an older version of this package in a Laravel app, please read the "Usage in Laravel" section.
+
 ## Contents
 
 [⚙️ Installation](#installation)
@@ -9,7 +11,11 @@ A [Flysystem](https://flysystem.thephpleague.com/) adapter for [ImageKit](https:
 
 [👩‍💻 Usage](#usage)
 
-[📐 Configuration](#configuration)
+[🚀 Usage in Laravel](#usage-in-laravel)
+
+[👊 Contributing](#contributing)
+
+[📄 License](#license)
 
 
 ## Installation
@@ -22,55 +28,20 @@ composer require taffovelikoff/imagekit-adapter
 
 ## Setup
 
-First you will need to sing up for an [ImageKit](https://imagekit.io/) account. Then go [https://imagekit.io/dashboard#developers](https://imagekit.io/dashboard#developers) to get your public key, private key and url endpoint. Add the following to your .env file:
+First you will need to sing up for an [ImageKit](https://imagekit.io/) account. Then you can go to [https://imagekit.io/dashboard#developers](https://imagekit.io/dashboard#developers) to get your public key, private key and url endpoint.
 
-```
-IMAGEKIT_PUBLIC=your_public_key
-IMAGEKIT_PRIVATE=your_public_key
-IMAGEKIT_ENDPOINT=https://ik.imagekit.io/your_id
-```
-If you prefer you can publish the config file:
-
-```
-php artisan vendor:publish --tag=imagekit
-```
 ## Usage
 
-Go to `config/filesystems.php ` and create a new disk (or change the driver of one to 'imagekit'):
-```php
-'disks' => [
-    ...
-    'imagekit' => [
-        'driver'    => 'imagekit',
-    ]
-],
-```
-```php
-use Storage; 
-
-// Upload file (second argument can be a url, file or base64)
-Storage::disk('imagekit')->put('filename.jpg', 'http://mysite.com/my_image.com');
-
-// Get file
-Storage::disk('imagekit')->get('filename.jpg');
-
-// Delete file
-Storage::disk('imagekit')->delete('filename.jpg');
-
-// List all files 
-Storage::disk('imagekit')->listContents('', false); // listContents($directoryName, $recursive)
-```
-
-Or if you don't want to extend the storage you can also do this:
 ```php
 use ImageKit\ImageKit;
+use League\Flysystem\Filesystem;
 use TaffoVelikoff\ImageKitAdapter\ImageKitAdapter;
 
 // Client
 $client = new ImageKit (
-    config('imagekit.public'),
-    config('imagekit.private'),
-    config('imagekit.endpoint')
+    'your_public_key',
+    'your_private_key',
+    'your_endpoint_url' // Should look something like this https://ik.imagekit.io/qvkc...
 );
 
 // Adapter
@@ -79,21 +50,89 @@ $adapter = new ImagekitAdapter($client);
 // Filesystem
 $fsys = new Filesystem($adapter);
 
-// Read a file example
-$file = $fsys->read('default-image.jpg');
+// Check if file exists example
+$file = $fsys->fileExists('default-image.jpg');
 ```
+If you need to purge the cache after a file was updated/deleted you can add "purge_cache" to the $options array of the adapter.
+
+```php
+$adapter = new ImagekitAdapter($client, $options = [
+    'purge_cache_update'    => [
+        'enabled'       => true,
+        'endpoint_url'  => 'your_endpoint_url'
+    ]
+]);
+```
+This will create a purge cache request. You can read more here: [https://docs.imagekit.io/features/cache-purging](https://docs.imagekit.io/features/cache-purging)
+
+## Usage in Laravel
+
+You can create a new driver by extending the Storage in the `boot()` method of `AppServiceProvider`.
+
+```php
+public function boot()
+{
+    Storage::extend('imagekit', function ($app, $config) {
+        $adapter = new ImagekitAdapter(
+
+            new ImageKit(
+                $config['public_key'],
+                $config['private_key'],
+                $config['endpoint_url']
+            ),
+
+            $options = [ // Optional
+                'purge_cache_update'    => [
+                    'enabled'       => true,
+                    'endpoint_url'  => 'your_endpoint_url'
+                 ]
+            ] 
+
+        );
+
+        return new FilesystemAdapter(
+            new Filesystem($adapter, $config),
+            $adapter,
+            $config
+        );
+    });
+}
+```
+Then create a new disk in `config/filesystems.php`:
+```php
+'imagekit' => [
+    'driver' => 'imagekit',
+    'public_key' => env('IMAGEKIT_PUBLIC_KEY'),
+    'private_key' => env('IMAGEKIT_PRIVATE_KEY'),
+    'endpoint_url' => env('IMAGEKIT_ENDPOINT_URL')
+],
+```
+Don't forget to add your keys in `.env`:
+```php
+IMAGEKIT_PUBLIC_KEY = your-public-key
+IMAGEKIT_PRIVATE_KEY = your-private-key
+IMAGEKIT_ENDPOINT_URL = your-endpint-url
+```
+And now you can use Laravel's Storage facade:
+```php
+Storage::disk('imagekit')->put('test.txt', 'This is a test file.');
+
+return response(Storage::disk('imagekit')->get('test.txt'));
+```
+If you already use an older version of `taffovelikoff/imagekit-adapter` in your Laravel app you most likely published the configuration file `config/imagekit.php`. It was possible to set a few options there:
+```php
+return [
+    'purge_cache_update'    => true,
+    'extend_storage'        => true,
+];
+```
+The `extend_storage => true` setting automatically expanded the Storage facade and created 'imagekit' driver. If you were using that option you need to manually add the new driver in `AppServiceProvider` like the example above.
+
+If the `purge_cache_update` setting was set to `true` a cache purge request was made when deleting/updating a file. In order tо keep this functionality all you need to do now is add `purge_cache_update` parameter in the options of the ImageKitAdapter when extending the storage.
 
 
-## Configuration
-If you publish the config file you can change a few things:
-```
-'purge_cache_update'    => true,
-'include_folders'       => true,
-'extend_storage'        => true
-```
-* purge_cache_update - if set to true a cache clear request is going to be made on file update and delete for the given path. Read more here: [https://docs.imagekit.io/features/caches](https://docs.imagekit.io/features/caches).
-* include_folders - if set to true folders will also be returned when using listContents()
-* extend_storage - Set to true by default. Extend the file storage system, so you can define new disks using "imagekit" driver in the filesystems.php config file (just like the example above).
+## Contributing
+Pull requests are welcome. Please feel free to lodge any issues or feedback as discussion points.
 
 ## License
 [MIT](https://choosealicense.com/licenses/mit/)

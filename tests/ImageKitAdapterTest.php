@@ -3,13 +3,15 @@
 namespace TaffoVelikoff\ImageKitAdapter\Tests;
 
 use ImageKit\ImageKit;
-use Prophecy\Argument;
 use League\Flysystem\Config;
+use League\Flysystem\StorageAttributes;
+use League\Flysystem\UnableToCreateDirectory;
+use Prophecy\Argument;
+use PHPUnit\Framework\TestCase;
 use Prophecy\PhpUnit\ProphecyTrait;
-use League\Flysystem\FileExistsException;
 use TaffoVelikoff\ImageKitAdapter\ImagekitAdapter;
 
-class ImageKitAdapterTest extends \Orchestra\Testbench\TestCase {
+class ImageKitAdapterTest extends TestCase {
 
     use ProphecyTrait;
 
@@ -23,57 +25,24 @@ class ImageKitAdapterTest extends \Orchestra\Testbench\TestCase {
         $this->adapter = new ImagekitAdapter($this->client->reveal());
     }
 
-    /** @test */
-    public function testCanRead() {
-        
-        // Mock api call
-        $this->client->listFiles(Argument::type('array'))->willReturn([
-            'err' => null,
-            'success'   => [
-                0 => [
-                    'type' => 'file',
-                    'name' => 'ineedu.jpg',
-                    'createdAt' => '2020-09-10T15:07:06.190Z',
-                    'fileId' => '5f5a411a7374d315559daaf0',
-                    'tags' => null,
-                    'customCoordinates' => null,
-                    'isPrivateFile' => false,
-                    'url' => 'https://ik.imagekit.io/test/ineedu.jpg',
-                    'thumbnail' => 'https://ik.imagekit.io/test/tr:n-media_library_thumbnail/ineedu.jpg',
-                    'fileType' => 'image',
-                    'filePath' => '/ineedu.jpg'
-                ]
-            ]
-        ]);
+    private function adapter(): ImagekitAdapter
+    {
+        return self::createFilesystemAdapter();
+    }
 
-        // What do we  expect?
-        $expected = [
-            "contents" => [
-                "type" => "file",
-                "name" => "ineedu.jpg",
-                "createdAt" => "2020-09-10T15:07:06.190Z",
-                "fileId" => "5f5a411a7374d315559daaf0",
-                "tags" => null,
-                "customCoordinates" => null,
-                "isPrivateFile" => false,
-                "url" => "https://ik.imagekit.io/test/ineedu.jpg",
-                "thumbnail" => "https://ik.imagekit.io/test/tr:n-media_library_thumbnail/ineedu.jpg",
-                "fileType" => "image",
-                "filePath" => "/ineedu.jpg"
-              ],
-          "stream" => null
+    public function metaDataProvider(): array
+    {
+        return [
+            //['visibility'], // Adapter does not support visibility
+            ['mimeType'],
+            ['lastModified'],
+            ['fileSize'],
         ];
-
-        $this->assertEquals($expected, $this->adapter->read('something'));
     }
 
     /** @test */
-    public function testCanWrite() {
-
-        // Mock api call
-        $this->client->upload(
-            Argument::any()
-        )->willReturn([
+    public function test_can_write() {
+        $this->client->upload(Argument::type('array'))->willReturn((object) [
             'err'   => null,
             'success'   => [
                 'fileId'    => 'testId',
@@ -85,8 +54,14 @@ class ImageKitAdapterTest extends \Orchestra\Testbench\TestCase {
             ],
         ]);
 
-        // What do we  expect?
-        $expected = [
+        $this->adapter->write('something', 'contents', new Config());
+        $this->addToAssertionCount(1);
+    }
+
+    /** @test */
+    public function test_can_write_stream()
+    {
+        $this->client->upload(Argument::type('array'))->willReturn((object) [
             'err'   => null,
             'success'   => [
                 'fileId'    => 'testId',
@@ -95,127 +70,272 @@ class ImageKitAdapterTest extends \Orchestra\Testbench\TestCase {
                 'filePath'  => '/filename.txt',
                 'url'       => 'https://ik.imagekit.io/test/filename.txt',
                 'fileType'  => 'non-image'
+            ],
+        ]);
+
+        $this->adapter->writeStream('something', 'contents', new Config());
+        $this->addToAssertionCount(1);
+    }
+
+    /**
+     * @test
+     * @dataProvider metaDataProvider
+     */
+    public function test_can_get_meta_data()
+    {
+        $this->client = $this->prophesize(ImageKit::class);
+        //$this->adapter = $this->prophesize(ImagekitAdapter::class);
+
+        $this->client->listFiles(Argument::type('array'))->willReturn((object) [
+            'err' => null,
+            'success' => [
+                0 => (object) ['fileId' => '62b1a4dd1a644d82e12d3455']
             ]
-        ];
+        ]);
 
-        $this->assertEquals($expected, $this->adapter->write('path/filename.txt', 'content', new Config()));
+        $this->client->getMetadata(Argument::type('string'))->willReturn((object) [
+            "type" => "file",
+            "name" => "somefile.png",
+            "updatedAt" => "2022-06-21T11:00:45.328Z",
+            "fileId" => "62b1a4dd1a644d82e12d3455",
+            "size" => 2505,
+            "mime" => "image/png",
+        ]);
+
+        $this->adapter = new ImagekitAdapter($this->client->reveal());
+
+        $this->assertInstanceOf(
+            StorageAttributes::class,
+            $this->adapter->fileSize('test/test.txt')
+        );
+    }
+
+    /** @test */
+    public function test_can_read()
+    {
+
+        $this->client->listFiles(Argument::type('array'))->willReturn((object) [
+            'err' => null,
+            'success' => [
+                0 => (object) [
+                    'url'   => 'https://ik.imagekit.io/qvkco4igg4/taffo/text.txt',
+                    'name'  => 'somefile.txt'
+                ]
+            ]
+        ]);
+
+        $this->assertStringContainsString(
+            'asd',
+            $this->adapter->read('somefile.txt')
+        );
 
     }
 
     /** @test */
-    public function testFileExistsWhenWriting() {
+    public function test_can_delete()
+    {
 
-        // Mock api call
-        $this->client->upload(Argument::any())->willThrow(new FileExistsException('path/filename.txt'));
+        $this->client->listFiles(Argument::type('array'))->willReturn((object) [
+            'err' => null,
+            'success' => [
+                0 => (object) [
+                    'fileId' => '62b1a4dd1a644d82e12d3455'
+                ]
+            ]
+        ]);
 
-        // Exception
-        $this->expectException(FileExistsException::class);
-        
-        $this->adapter->write('path/filename.txt', 'content', new Config());
-        
+        $this->client->deleteFile(Argument::type('string'))->willReturn((object) [
+            'err'       => null,
+            'success'   => null
+        ]);
+
+        $this->client->deleteFolder(Argument::type('string'))->willReturn((object) [
+            'err'       => null,
+            'success'   => null
+        ]);
+
+        $this->adapter->delete('/test/somefile.png');
+        $this->addToAssertionCount(1);
+
+        $this->adapter->deleteDirectory('/test/somefile');
+        $this->addToAssertionCount(1);
+
     }
 
     /** @test */
-    public function testCopyAFile() {
+    public function test_can_not_create_a_directory_without_name()
+    {
 
-        // Find the file
-        $retListFiles = '{
-            "err": null,
-            "success": [{
-                "type": "file",
-                "name": "test.txt",
-                "createdAt": "2020-09-10T15:07:06.190Z",
-                "fileId": "5f5a411a7374d315559daaf0",
-                "tags": null,
-                "customCoordinates": null,
-                "isPrivateFile": false,
-                "url": "https://ik.imagekit.io/test/oldFileName.txt",
-                "fileType": "text",
-                "filePath": "/oldFileName.txt"
-            }]
-        }';
-        $this->client->listFiles(Argument::any())->willReturn(json_decode($retListFiles));
+        $this->client->createFolder(Argument::type('string'))->willReturn((object) [
+            'err'       => [
+                'message'   => 'Missing data for creation of folder',
+                'help'      => ''
+            ],
+            'succes'    => []
+        ]);
 
-        // Upload the file
-        $retUpload = '{
-            "err": null,
-            "success": {
-                "fileId": "testId",
-                "name": "oldFileName.txt",
-                "size": 5,
-                "filePath": "/oldFileName.txt",
-                "url": "https://ik.imagekit.io/test/oldFileName.txt",
-                "fileType": "non-image"
-            }
-        }';
-        $this->client->upload(Argument::any())->willReturn(json_decode($retUpload));
+        $this->expectException(UnableToCreateDirectory::class);
+        $this->adapter->createDirectory('/', new Config());
 
-
-        $this->assertTrue($this->adapter->copy('oldFileName.txt', 'newFileName.txt'));
     }
 
     /** @test */
-    public function testFileNotExists() {
+    public function test_can_create_a_directory()
+    {
 
-        // Expected result
-        $return = '{"err": null, "success": []}';
+        $this->client->createFolder(Argument::type('string'))->willReturn((object) [
+            'err'       => [],
+            'succes'    => null
+        ]);
 
-        // Return "not found file"
-        $this->client->listFiles(Argument::any())->willReturn(json_decode($return));
+        $this->adapter->createDirectory('test_directory', new Config());
+        $this->addToAssertionCount(1);
 
-        $this->assertFalse($this->adapter->has('test/test.txt'));
     }
 
     /** @test */
-    public function testFileExists() {
+    public function test_can_list_contents()
+    {
 
-        // Expected result
-        $return = '{
-            "err": null,
-            "success": [{
-                "type": "file",
-                "name": "test.txt",
-                "createdAt": "2020-09-10T15:07:06.190Z",
-                "fileId": "5f5a411a7374d315559daaf0",
-                "tags": null,
-                "customCoordinates": null,
-                "isPrivateFile": false,
-                "url": "https://ik.imagekit.io/test/oldFileName.txt",
-                "fileType": "text",
-                "filePath": "/oldFileName.txt"
-            }]
-        }';
+        $this->client->listFiles(Argument::type('array'))->willReturn((object) [
+            'err'       => null,
+            'success'   => [
+                0   => (object) [
+                    'type'      => 'file',
+                    'name'      => 'testfile.png',
+                    'createdAt' => '2021-03-02T12:43:51.851Z',
+                    'updatedAt' => '2021-03-02T12:43:51.851Z',
+                    'fileId'    => '603e33077a5cd779ef851c07',
+                    'size'      => 2361,
+                    'mime'      => 'image/jpeg',
+                    'filePath'  => 'https://ik.imagekit.io/qvkco4igg4/taffo/text.txt'
+                ]
+            ]
+        ]);
 
-        // Return "not found file"
-        $this->client->listFiles(Argument::any())->willReturn(json_decode($return));
+        $result = $this->adapter->listContents('', true);
+        $this->assertCount(1, $result);
 
-        $this->assertTrue($this->adapter->has('test/test.txt'));
     }
 
-     /** @test */
-    public function testFileDelete() {
+    /** @test */
+    public function test_can_move_a_file()
+    {
 
-        $retListFiles = '{
-            "err": null,
-            "success": [{
-                "type": "file",
-                "name": "test.txt",
-                "createdAt": "2020-09-10T15:07:06.190Z",
-                "fileId": "5f5a411a7374d315559daaf0",
-                "tags": null,
-                "customCoordinates": null,
-                "isPrivateFile": false,
-                "url": "https://ik.imagekit.io/test/test.txt",
-                "fileType": "text",
-                "filePath": "/test.txt"
-            }]
-        }';
+        $this->client->listFiles(Argument::type('array'))->willReturn((object) [
+            'err'       => null,
+            'success'   => [
+                0   => (object) [
+                    'type'      => 'file',
+                    'name'      => 'testfile.png',
+                    'createdAt' => '2021-03-02T12:43:51.851Z',
+                    'updatedAt' => '2021-03-02T12:43:51.851Z',
+                    'fileId'    => '603e33077a5cd779ef851c07',
+                    'size'      => 2361,
+                    'mime'      => 'image/jpeg',
+                    'filePath'  => 'https://ik.imagekit.io/qvkco4igg4/taffo/text.txt'
+                ]
+            ]
+        ]);
 
-        $this->client->listFiles(Argument::any())->willReturn(json_decode($retListFiles));
+        $this->client->moveFile(Argument::type('string'), Argument::type('string'))->willReturn((object) [
+            'err'       => null,
+            'success'   => null
+        ]);
 
-        $this->client->deleteFile(Argument::any())->willReturn(json_decode('{"err": null, "success": null}'));
-
-        $this->assertTrue($this->adapter->delete('test.txt'));
+        $this->adapter->move('something', 'something', new Config());
+        $this->addToAssertionCount(1);
     }
+
+    /** @test */
+    public function test_can_move_a_directory()
+    {
+
+        $this->client->listFiles(Argument::type('array'))->willReturn((object) [
+            'err'       => null,
+            'success'   => [
+                0   => (object) [
+                    'type'      => 'folder',
+                    'name'      => 'some-folder',
+                    'createdAt' => '2021-03-02T12:43:51.851Z',
+                    'updatedAt' => '2021-03-02T12:43:51.851Z',
+                    'fileId'    => '603e33077a5cd779ef851c07',
+                ]
+            ]
+        ]);
+
+        $this->client->moveFolder(Argument::type('string'), Argument::type('string'))->willReturn((object) [
+            'err'       => null,
+            'success'   => null
+        ]);
+
+        $this->adapter->move('some-folder', 'some-other-folder', new Config());
+        $this->addToAssertionCount(1);
+    }
+
+    /** @test */
+    public function test_can_copy_a_file()
+    {
+
+        $this->client->listFiles(Argument::type('array'))->willReturn((object) [
+            'err'       => null,
+            'success'   => [
+                0   => (object) [
+                    'type'      => 'file',
+                    'name'      => 'testfile.png',
+                    'createdAt' => '2021-03-02T12:43:51.851Z',
+                    'updatedAt' => '2021-03-02T12:43:51.851Z',
+                    'fileId'    => '603e33077a5cd779ef851c07',
+                    'size'      => 2361,
+                    'mime'      => 'image/jpeg',
+                    'filePath'  => 'https://ik.imagekit.io/qvkco4igg4/taffo/text.txt'
+                ]
+            ]
+        ]);
+
+        $this->client->copyFile(Argument::type('string'), Argument::type('string'))->willReturn((object) [
+            'err'       => null,
+            'success'   => null
+        ]);
+
+        $this->adapter->copy('something', 'something', new Config());
+        $this->addToAssertionCount(1);
+    }
+
+    /** @test */
+    public function test_can_copy_a_folder()
+    {
+
+        $this->client->listFiles(Argument::type('array'))->willReturn((object) [
+            'err'       => null,
+            'success'   => [
+                0   => (object) [
+                    'type'      => 'folder',
+                    'name'      => 'some-folder',
+                    'createdAt' => '2021-03-02T12:43:51.851Z',
+                    'updatedAt' => '2021-03-02T12:43:51.851Z',
+                    'fileId'    => '603e33077a5cd779ef851c07',
+                    'filePath'  => 'some-folder'
+                ]
+            ]
+        ]);
+
+        $this->client->copyFolder(Argument::type('string'), Argument::type('string'))->willReturn((object) [
+            'err'       => null,
+            'success'   => null
+        ]);
+
+        $this->adapter->copy('something', 'something', new Config());
+        $this->addToAssertionCount(1);
+    }
+
+    public function test_can_get_client()
+    {
+        $this->assertInstanceOf(
+            ImageKit::class,
+            $this->adapter->getClient()
+        );
+    }
+
 
 }

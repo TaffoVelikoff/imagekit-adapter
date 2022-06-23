@@ -3,25 +3,35 @@
 namespace TaffoVelikoff\ImageKitAdapter;
 
 use DateTime;
+use ImageKit\ImageKit;
 use League\Flysystem;
 use League\Flysystem\Config;
 use League\Flysystem\DirectoryAttributes;
 use League\Flysystem\FileAttributes;
+use League\Flysystem\StorageAttributes;
 use League\Flysystem\UnableToCheckDirectoryExistence;
+use League\Flysystem\UnableToCopyFile;
 use League\Flysystem\UnableToCreateDirectory;
 use League\Flysystem\UnableToReadFile;
+use League\Flysystem\UnableToSetVisibility;
 use League\Flysystem\UnableToWriteFile;
 use League\MimeTypeDetection\FinfoMimeTypeDetector;
 use TaffoVelikoff\ImageKitAdapter\Exceptions\ImageKitConfigurationException;
+
 
 class ImagekitAdapter implements Flysystem\FilesystemAdapter {
 
     protected $client;
     protected $options;
 
-    public function __construct(\ImageKit\ImageKit $client, $options = []) {
+    public function __construct(ImageKit $client, $options = []) {
         $this->client = $client;
         $this->options = $options;
+    }
+
+    public function getClient(): ImageKit
+    {
+        return $this->client;
     }
 
     /**
@@ -95,14 +105,12 @@ class ImagekitAdapter implements Flysystem\FilesystemAdapter {
      */
     public function readStream($path)
     {
-        $location = $this->getFileFolderNames($path);
+        if(!strlen($path))
+            throw new UnableToReadFile('Path should not be empty.');
 
-        $file = $this->client->listFiles([
-            'name'          => $location['file'],
-            'includeFolder' => true
-        ]);
-        
-        return @fopen($file->success[0]->url, 'rb');
+        $file = $this->searchFile($path);
+
+        return @fopen($file->url, 'rb');
     }
 
     /**
@@ -112,7 +120,7 @@ class ImagekitAdapter implements Flysystem\FilesystemAdapter {
     {
 
         if(!strlen($path))
-            throw new UnableToReadFile;
+            throw new UnableToReadFile('Path should not be empty.');
 
         $file = $this->searchFile($path);
 
@@ -148,7 +156,7 @@ class ImagekitAdapter implements Flysystem\FilesystemAdapter {
     {
         $create = $this->client->createFolder($path);
 
-        if(empty($create->success))
+        if(!empty($create->err))
             throw new UnableToCreateDirectory;
     }
 
@@ -224,10 +232,13 @@ class ImagekitAdapter implements Flysystem\FilesystemAdapter {
     public function copy(string $source, string $destination, Config $config): void
     {
 
-        $sourceFile = $this->searchFile($source);
+        $source = $this->searchFile($source);
 
-        $this->upload($destination, $sourceFile->url);
-
+        if($source->type == 'file') {
+            $this->client->copyFile($source->filePath, $destination);
+        } else {
+            $this->client->copyFolder($source->filePath, $destination);
+        }
     }
 
     /**
@@ -236,22 +247,14 @@ class ImagekitAdapter implements Flysystem\FilesystemAdapter {
     public function move(string $source, string $destination, Config $config): void
     {
 
-        $path = $this->getFileFolderNames($source);
-        
-        $list = $this->client->listFiles([
-            'name'  => $path['file'],
-            'path'  => $path['directory'],
-            'includeFolder' => true
-        ]);
+        $asset = $this->searchFile($source);
 
-        if(empty($list->success))
-            throw new UnableToReadFile('File or directory not found.');
-
-        if($list->success[0]->type == 'folder') {
-            $move = $this->client->moveFolder($source, $destination);
+        if($asset->type == 'folder') {
+            $this->client->moveFolder($source, $destination);
         } else {
-            $move = $this->client->moveFile($source, $destination);
+            $this->client->moveFile($source, $destination);
         }
+
     }
 
     /**
@@ -354,8 +357,9 @@ class ImagekitAdapter implements Flysystem\FilesystemAdapter {
 
         // Get file from old path
         $file = $this->client->listFiles([
-            'name'    => $location['file'] ?? '',
-            'path'    => $location['directory'] ?? ''
+            'name'          => $location['file'] ?? '',
+            'path'          => $location['directory'] ?? '',
+            'includeFolder' => true
         ]);
 
         if(empty($file->success))
